@@ -79,6 +79,11 @@ The JSON must follow this structure exactly:
   ]
 }
 
+- Dates may appear in DD-MMM format (e.g. 01-Apr, 18-Apr) — assume the year from programme context or the as_of_date. Convert to YYYY-MM-DD format.
+- Percentages may appear with a % symbol (e.g. 100%, 52%) — strip the symbol and store as a plain number (100, 52)
+- Never leave planned_start, planned_end as null if date columns are present in the sheet — infer from context
+- pct_complete must always be a number between 0 and 100, never null if a percentage column exists
+
 Rules:
 - Only extract what is present in this sheet
 - If a field is not found in this sheet, use null for strings, 0 for numbers, [] for arrays

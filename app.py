@@ -2,7 +2,7 @@
 
 import streamlit as st
 from utils.supabase_client import get_latest, get_all_snapshots
-from datetime import datetime
+from datetime import datetime,timezone,timedelta
 
 st.set_page_config(page_title="NeoNiche Programme Tracker", layout="wide")
 
@@ -49,10 +49,8 @@ def render_gantt(phases, tasks, kpis, meta):
     days_elapsed = kpis.get('days_elapsed', 0)
 
     try:
-        prog_start = datetime.fromisoformat(meta.get('as_of_date') or datetime.today().isoformat())
-        # find earliest start
         all_starts = [p.get('start') for p in phases if p.get('start')]
-        base_date = datetime.fromisoformat(min(all_starts)) if all_starts else prog_start
+        base_date = datetime.fromisoformat(min(all_starts)) if all_starts else datetime.today()
     except:
         base_date = datetime.today()
 
@@ -65,63 +63,124 @@ def render_gantt(phases, tasks, kpis, meta):
     status_colours = {
         "DONE": "#4CAF50",
         "IN FLIGHT": "#2196F3",
-        "UPCOMING": "#9E9E9E"
+        "UPCOMING": "#9E9E9E",
+        "ACTIVE": "#2196F3",
+        "PENDING": "#FF9800"
     }
 
-    rows = []
-    for phase in phases:
-        rows.append({"label": f"📌 {phase.get('id')} · {phase.get('name')}", "start": phase.get('start'), "end": phase.get('end'), "status": phase.get('status', 'UPCOMING'), "is_phase": True})
-        for task in [t for t in tasks if t.get('phase_id') == phase.get('id')]:
-            rows.append({"label": f"  {task.get('task', '')}", "start": task.get('planned_start'), "end": task.get('planned_end'), "status": task.get('status', 'UPCOMING'), "is_phase": False})
+    today_pct = (days_elapsed / total_days) * 100
 
     gantt_html = f"""
-<div style="overflow-x: auto; font-family: monospace; font-size: 12px;">
-  <div style="min-width: 900px;">
-    <div style="display: flex; margin-bottom: 4px; border-bottom: 1px solid #ccc; padding-bottom: 4px;">
-      <div style="width: 280px; font-weight: bold; flex-shrink: 0;">Task</div>
-      <div style="flex: 1; position: relative; height: 20px;">
-        <div style="position: absolute; left: {(days_elapsed / total_days) * 100}%; top: 0; bottom: 0; width: 2px; background: red; z-index: 10;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #888;">
-          <span>Day 0</span><span>Day {total_days // 4}</span><span>Day {total_days // 2}</span><span>Day {3 * total_days // 4}</span><span>Day {total_days}</span>
+<style>
+.gantt-wrap {{ overflow-x: auto; font-family: sans-serif; font-size: 12px; }}
+.gantt-inner {{ min-width: 600px; }}
+.gantt-row {{ display: flex; align-items: center; margin-bottom: 3px; }}
+.gantt-label {{ width: 160px; flex-shrink: 0; position: sticky; left: 0; z-index: 2; padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+.gantt-bar-wrap {{ flex: 1; position: relative; height: 18px; background: #f0f0f0; border-radius: 2px; }}
+.gantt-bar {{ position: absolute; height: 100%; border-radius: 2px; opacity: 0.85; }}
+.gantt-today {{ position: absolute; top: 0; bottom: 0; width: 2px; background: red; z-index: 10; left: {today_pct:.1f}%; }}
+
+/* checkbox hack for collapsible */
+.gantt-toggle {{ display: none; }}
+.gantt-tasks {{ display: none; }}
+.gantt-toggle:checked ~ .gantt-tasks {{ display: block; }}
+.gantt-toggle:checked ~ .phase-row-wrap .toggle-icon::before {{ content: '▼'; }}
+.toggle-icon::before {{ content: '▶'; font-size: 10px; margin-right: 4px; }}
+.phase-label-wrap {{ cursor: pointer; display: flex; align-items: center; width: 160px; flex-shrink: 0; position: sticky; left: 0; background: #f9f9f9; z-index: 2; padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; }}
+</style>
+<div class="gantt-wrap">
+  <div class="gantt-inner">
+    <div class="gantt-row" style="border-bottom:1px solid #ccc; margin-bottom:6px; padding-bottom:4px;">
+      <div style="width:160px; flex-shrink:0; font-weight:bold; background:white; position:sticky; left:0; z-index:2;">Phase / Task</div>
+      <div style="flex:1; display:flex; justify-content:space-between; font-size:10px; color:#888;">
+        <span>Day 0</span><span>Day {total_days//4}</span><span>Day {total_days//2}</span><span>Day {3*total_days//4}</span><span>Day {total_days}</span>
+      </div>
+    </div>
+"""
+
+    for i, phase in enumerate(phases):
+        phase_tasks = [t for t in tasks if t.get('phase_id') == phase.get('id')]
+        start_day = day_offset(phase.get('start'))
+        end_day = day_offset(phase.get('end'))
+        duration = max(end_day - start_day, 1)
+        left_pct = (start_day / total_days) * 100
+        width_pct = (duration / total_days) * 100
+        colour = status_colours.get(phase.get('status', '').upper(), '#9E9E9E')
+        has_tasks = len(phase_tasks) > 0
+        chk_id = f"chk_{i}"
+
+        if has_tasks:
+            gantt_html += f'<input type="checkbox" class="gantt-toggle" id="{chk_id}">'
+
+        gantt_html += f"""
+    <div class="phase-row-wrap">
+      <div class="gantt-row" style="background:#f9f9f9;">
+        {'<label for="' + chk_id + '" class="phase-label-wrap"><span class="toggle-icon"></span>' + phase.get('id','') + ' · ' + phase.get('name','') + '</label>' if has_tasks else '<div class="phase-label-wrap" style="cursor:default;"><span style="margin-right:14px;"></span>' + phase.get('id','') + ' · ' + phase.get('name','') + '</div>'}
+        <div class="gantt-bar-wrap">
+          <div class="gantt-bar" style="left:{left_pct:.1f}%; width:{width_pct:.1f}%; background:{colour};"></div>
+          <div class="gantt-today"></div>
         </div>
       </div>
     </div>
 """
 
-    for row in rows:
-        start_day = day_offset(row['start']) if row.get('start') else 0
-        end_day = day_offset(row['end']) if row.get('end') else 0
-        duration = max(end_day - start_day, 1)
-        left_pct = (start_day / total_days) * 100
-        width_pct = (duration / total_days) * 100
-        colour = status_colours.get(row['status'].upper(), "#9E9E9E")
-        bg = "#f9f9f9" if row['is_phase'] else "white"
-        font_weight = "bold" if row['is_phase'] else "normal"
-
-        gantt_html += f"""
-    <div style="display: flex; align-items: center; margin-bottom: 3px; background: {bg}; padding: 2px 0;">
-      <div style="width: 280px; flex-shrink: 0; padding-right: 8px; font-weight: {font_weight}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{row['label']}</div>
-      <div style="flex: 1; position: relative; height: 18px; background: #f0f0f0; border-radius: 2px;">
-        <div style="position: absolute; left: {left_pct:.1f}%; width: {width_pct:.1f}%; background: {colour}; height: 100%; border-radius: 2px; opacity: 0.85;"></div>
-        <div style="position: absolute; left: {(days_elapsed / total_days) * 100}%; top: 0; bottom: 0; width: 2px; background: red; z-index: 10;"></div>
+        if has_tasks:
+            gantt_html += f'<div class="gantt-tasks" id="tasks_{i}">'
+            for task in phase_tasks:
+                t_start = day_offset(task.get('planned_start'))
+                t_end = day_offset(task.get('planned_end'))
+                t_duration = max(t_end - t_start, 1)
+                t_left = (t_start / total_days) * 100
+                t_width = (t_duration / total_days) * 100
+                t_colour = status_colours.get(task.get('status', '').upper(), '#9E9E9E')
+                milestone = " 🏁" if task.get('is_milestone') else ""
+                gantt_html += f"""
+      <div class="gantt-row">
+        <div style="width:160px; flex-shrink:0; position:sticky; left:0; background:white; z-index:2; padding-left:16px; padding-right:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px;">{task.get('task','')}{milestone}</div>
+        <div class="gantt-bar-wrap">
+          <div class="gantt-bar" style="left:{t_left:.1f}%; width:{t_width:.1f}%; background:{t_colour};"></div>
+          <div class="gantt-today"></div>
+        </div>
       </div>
-    </div>
 """
+            gantt_html += '</div>'
 
-    gantt_html += """
-    <div style="font-size: 11px; margin-top: 8px; color: #666;">
-      <span style="display:inline-block; width:12px; height:12px; background:#4CAF50; border-radius:2px; margin-right:4px;"></span>Done
-      <span style="display:inline-block; width:12px; height:12px; background:#2196F3; border-radius:2px; margin-right:4px; margin-left:12px;"></span>In Flight
-      <span style="display:inline-block; width:12px; height:12px; background:#9E9E9E; border-radius:2px; margin-right:4px; margin-left:12px;"></span>Upcoming
-      <span style="display:inline-block; width:12px; height:12px; background:red; border-radius:2px; margin-right:4px; margin-left:12px;"></span>Today
+    gantt_html += f"""
+    <div style="font-size:11px; margin-top:10px; color:#666; display:flex; gap:12px; flex-wrap:wrap;">
+      <span><span style="display:inline-block;width:12px;height:12px;background:#4CAF50;border-radius:2px;margin-right:4px;"></span>Done</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#2196F3;border-radius:2px;margin-right:4px;"></span>In Flight / Active</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#FF9800;border-radius:2px;margin-right:4px;"></span>Pending</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#9E9E9E;border-radius:2px;margin-right:4px;"></span>Upcoming</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:red;border-radius:2px;margin-right:4px;"></span>Today</span>
     </div>
   </div>
 </div>
 """
-    # st.markdown(gantt_html, unsafe_allow_html=True)
     st.html(gantt_html)
 
+def programme_status_display(status: str):
+    if not status:
+        return "—", "#888"
+    s = status.upper()
+    if any(x in s for x in ["ON TRACK", "ADVANCE", "AHEAD"]):
+        return "ON TRACK", "#4CAF50"
+    elif any(x in s for x in ["AT RISK", "DELAYED", "DELAY", "AMBER"]):
+        return "AT RISK", "#FF9800"
+    elif any(x in s for x in ["CRITICAL", "RED", "BEHIND"]):
+        return "CRITICAL", "#f44336"
+    else:
+        return status.split(".")[0].split("·")[0].strip(), "#888"
+
 def render_dashboard(data):
+
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    st.markdown(f"""
+    <div style="text-align:center; font-size:14px; color:#444; margin-bottom:8px; font-weight:500;">
+        {now_ist.strftime("%A, %d %b %Y")}
+    </div>
+    """, unsafe_allow_html=True)
+    
     meta = data.get("meta", {})
     kpis = data.get("kpis", {})
     phases = data.get("phases", [])
@@ -145,8 +204,14 @@ def render_dashboard(data):
     
     programme_status = meta.get('programme_status', '—')
     active_risks = kpis.get('active_risks', 0)
-    c5.metric("Programme Status", programme_status)
-    c5.caption(f"{active_risks} active risk(s) to manage")
+
+    p_status, p_colour = programme_status_display(meta.get('programme_status', ''))
+    c5.markdown(f"""
+<div style="background:{p_colour}18; border-left:4px solid {p_colour}; border-radius:4px; padding:8px 12px;">
+  <div style="font-size:12px; color:#666; margin-bottom:2px;">Programme Status</div>
+  <div style="font-size:20px; font-weight:bold; color:{p_colour};">{p_status}</div>
+</div>
+""", unsafe_allow_html=True)
 
     st.divider()
 
@@ -371,20 +436,75 @@ def render_history(snapshots):
             return st.warning
 
     if added_phases:
-        st.markdown("**Added:**")
+        st.markdown("**Added phases:**")
         for p in added_phases:
             st.info(f"+ {p.get('id')} · {p.get('name')} · {p.get('status')} · {p.get('pct_complete')}%")
     if removed_phases:
-        st.markdown("**Removed:**")
+        st.markdown("**Removed phases:**")
         for p in removed_phases:
             st.markdown(f"<div style='color:#6e7781; padding:4px 0;'>— {p.get('id')} · {p.get('name')}</div>", unsafe_allow_html=True)
-    if changed_phases:
-        st.markdown("**Changed:**")
-        for c in changed_phases:
-            fn = phase_change_colour(c['phase'], c['prev'])
-            fn(f"~ {c['phase'].get('id')} · {c['phase'].get('name')}: {', '.join(c['diffs'])}")
+
+    if changed_phases or phases_b_by_id:
+        st.markdown("**Phase Progress:**")
+        bar_rows = []
+        for pid, p in phases_b_by_id.items():
+            prev = phases_a_by_id.get(pid) or phases_a_by_name.get(p.get('name', ''))
+            prev_pct = prev.get('pct_complete', 0) if prev else 0
+            curr_pct = p.get('pct_complete', 0)
+            gained = max(curr_pct - prev_pct, 0)
+            remaining = max(100 - curr_pct, 0)
+            bar_rows.append({
+                "label": f"{p.get('id')} · {p.get('name')}",
+                "prev": prev_pct,
+                "gained": gained,
+                "remaining": remaining
+            })
+
+        bar_html = """
+<style>
+.gained-bar {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    rgba(33,150,243,0.6) 4px,
+    rgba(33,150,243,0.6) 6px
+  );
+  background-color: #e8f4fd;
+}
+</style>
+<div style="overflow-x:auto;">
+<div style="min-width:600px;">
+<div style="font-size:12px; margin-bottom:8px; display:flex; gap:16px; flex-wrap:wrap;">
+  <span><span style="display:inline-block;width:12px;height:12px;background:#2196F3;margin-right:4px;border-radius:2px;"></span>Previous progress</span>
+  <span><span style="display:inline-block;width:12px;height:12px;background-image:repeating-linear-gradient(-45deg,transparent,transparent 4px,rgba(33,150,243,0.6) 4px,rgba(33,150,243,0.6) 6px);background-color:#e8f4fd;margin-right:4px;border-radius:2px;"></span>New progress</span>
+  <span><span style="display:inline-block;width:12px;height:12px;background:#f0f0f0;border:1px solid #ccc;margin-right:4px;border-radius:2px;"></span>Remaining</span>
+</div>
+<div style="font-family:sans-serif; font-size:13px;">
+"""
+        for row in bar_rows:
+            bar_html += f"""
+<div style="display:flex; align-items:center; margin-bottom:8px;">
+  <div style="width:200px; flex-shrink:0; padding-right:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; position:sticky; left:0; background:white; z-index:1;">{row['label']}</div>
+  <div style="flex:1; display:flex; height:22px; border-radius:2px; overflow:hidden; border:1px solid #ddd;">
+    <div style="width:{row['prev']}%; background:#2196F3; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+      {'<span style="color:white; font-size:10px; white-space:nowrap; padding:0 4px;">Existing Work</span>' if row['prev'] > 8 else ''}
+    </div>
+    <div class="gained-bar" style="width:{row['gained']}%; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+      {'<span style="color:black; font-size:10px; white-space:nowrap; padding:0 4px; text-shadow:0 0 3px rgba(0,0,0,0.5);">Progress Made</span>' if row['gained'] > 5 else ''}
+    </div>
+    <div style="width:{row['remaining']}%; background:#f0f0f0;"></div>
+  </div>
+  <div style="width:70px; text-align:right; font-size:12px; color:#444; padding-left:8px;">{int(row['prev']+row['gained'])}% done</div>
+</div>
+"""
+        bar_html += "</div></div>"
+        st.html(bar_html)
+
     if not added_phases and not removed_phases and not changed_phases:
         st.info("No phase changes between these two uploads.")
+
+    st.divider()
 
     st.divider()
 
