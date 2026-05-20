@@ -6,6 +6,14 @@ from utils.llm_client import analyse_excel
 from utils.supabase_client import save_snapshot, get_latest
 
 st.set_page_config(page_title="Admin — Upload", layout="wide")
+
+st.markdown("""
+<style>
+[data-testid="stSidebar"] { display: none; }
+[data-testid="collapsedControl"] { display: none; }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Admin — Upload Tracker")
 
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])

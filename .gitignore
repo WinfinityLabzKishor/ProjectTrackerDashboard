@@ -7,3 +7,4 @@ __pycache__/
 *.csv
 *.html
 venv_*
+INTERNAL_TECHNICAL_DOC.md

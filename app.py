@@ -8,6 +8,13 @@ st.set_page_config(page_title="NeoNiche Programme Tracker", layout="wide")
 
 st.markdown("""
 <style>
+[data-testid="stSidebar"] { display: none; }
+[data-testid="collapsedControl"] { display: none; }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
 /* rectangular progress bars */
 .stProgress > div > div > div > div {
     border-radius: 2px;
