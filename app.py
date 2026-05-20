@@ -197,21 +197,22 @@ def render_dashboard(data):
 
     # KPIs
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Day", f"{kpis.get('days_elapsed', 0)} / {meta.get('total_days', 0)}", f"{kpis.get('pct_time_elapsed', 0)}% elapsed")
-    c2.metric("Days Remaining", kpis.get('days_remaining', 0))
-    c3.metric("Phases Done", f"{kpis.get('phases_complete', 0)} / {kpis.get('phases_total', 0)}")
-    c4.metric("Work Complete", f"{kpis.get('pct_work_complete', 0)}%", f"vs {kpis.get('pct_time_elapsed', 0)}% time")
-    
-    programme_status = meta.get('programme_status', '—')
-    active_risks = kpis.get('active_risks', 0)
-
     p_status, p_colour = programme_status_display(meta.get('programme_status', ''))
-    c5.markdown(f"""
+    c1.markdown(f"""
 <div style="background:{p_colour}18; border-left:4px solid {p_colour}; border-radius:4px; padding:8px 12px;">
   <div style="font-size:12px; color:#666; margin-bottom:2px;">Programme Status</div>
   <div style="font-size:20px; font-weight:bold; color:{p_colour};">{p_status}</div>
 </div>
 """, unsafe_allow_html=True)
+    
+    c2.metric("Phases Done", f"{kpis.get('phases_complete', 0)} / {kpis.get('phases_total', 0)}")
+    c3.metric("Work Complete", f"{kpis.get('pct_work_complete', 0)}%", f"vs {kpis.get('pct_time_elapsed', 0)}% time")
+    c4.metric("Day", f"{kpis.get('days_elapsed', 0)} / {meta.get('total_days', 0)}", f"{kpis.get('pct_time_elapsed', 0)}% elapsed")
+    c5.metric("Days Remaining", kpis.get('days_remaining', 0))
+    
+    programme_status = meta.get('programme_status', '—')
+    active_risks = kpis.get('active_risks', 0)
+
 
     st.divider()
 
