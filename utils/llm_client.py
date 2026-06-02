@@ -116,7 +116,7 @@ Structure to return:
 def get_model():
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     return genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
+        model_name="gemini-2.5-flash",
         system_instruction=SYSTEM_PROMPT
     )
 
