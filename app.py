@@ -268,12 +268,13 @@ def render_dashboard(data):
                     pct = task.get('pct_complete', 0)
                     pct_str = f"· {pct}%" if pct and pct > 0 else ""
 
-                    notes_str = f"· *{task['notes']}*" if task.get('is_milestone') and task.get('notes') else ""
+                    notes_str = f' &nbsp;<span style="background:#FFF3CD; color:#856404; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid #FFECB5;">🏁 {task["notes"]}</span>' if task.get('is_milestone') and task.get('notes') else ""
 
                     st.markdown(
                         f"- {status_badge(task.get('status', ''))} **{task.get('task', '')}**{milestone} "
                         f"· {task.get('owner', '—')} "
-                        f"{date_str}{pct_str} {notes_str}"
+                        f"{date_str}{pct_str} {notes_str}",
+                        unsafe_allow_html=True
                     )
 
     st.divider()
