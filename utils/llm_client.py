@@ -98,6 +98,8 @@ Merge them into a single coherent JSON object following the same structure.
 Rules:
 - For meta and kpis: use the most complete/non-null values across all sheets
 - For phases, tasks, risks, critical_actions: combine all items, remove exact duplicates
+- When merging tasks, deduplicate by matching task name within the same phase_id. Keep the version with the most complete data (non-null dates, non-zero pct_complete). Never include the same task twice under the same phase.
+- Same deduplication applies to phases — match by id or name, never duplicate.
 - Return ONLY valid JSON, no explanation, no markdown, no backticks
 
 Structure to return:
@@ -123,7 +125,13 @@ def parse_json(raw: str) -> dict:
     return json.loads(raw)
 
 def normalise_percentages(data: dict) -> dict:
-    # normalize any 0-1 range values to 0-100
+    status_map = {
+        "PENDING": "UPCOMING",
+        "ACTIVE": "IN FLIGHT",
+        "COMPLETE": "DONE",
+        "COMPLETED": "DONE"
+    }
+
     kpis = data.get("kpis", {})
     for key in ["pct_time_elapsed", "pct_work_complete"]:
         val = kpis.get(key)
@@ -134,11 +142,17 @@ def normalise_percentages(data: dict) -> dict:
         val = phase.get("pct_complete")
         if val is not None and 0 < val <= 1:
             phase["pct_complete"] = round(val * 100, 1)
+        s = phase.get("status", "").upper()
+        if s in status_map:
+            phase["status"] = status_map[s]
 
     for task in data.get("tasks", []):
         val = task.get("pct_complete")
         if val is not None and 0 < val <= 1:
             task["pct_complete"] = round(val * 100, 1)
+        s = task.get("status", "").upper()
+        if s in status_map:
+            task["status"] = status_map[s]
 
     return data
 
