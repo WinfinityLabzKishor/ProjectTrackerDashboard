@@ -163,7 +163,7 @@ def analyse_sheet(model, sheet_name: str, sheet_text: str) -> dict:
 def merge_results(sheet_results: list) -> dict:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     merge_model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
+        model_name="gemini-2.5-flash",
         system_instruction=MERGE_PROMPT
     )
     response = merge_model.generate_content(json.dumps(sheet_results))
