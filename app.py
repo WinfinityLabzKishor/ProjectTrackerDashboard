@@ -261,24 +261,20 @@ def render_dashboard(data):
                 for task in phase_tasks:
                     milestone = " 🏁" if task.get('is_milestone') else ""
 
-                    # build date string only if dates exist
                     start = task.get('planned_start')
                     end = task.get('planned_end')
                     date_str = f"· {format_date(start)} → {format_date(end)} " if start and end else ""
 
-                    # build pct string only if meaningful
                     pct = task.get('pct_complete', 0)
                     pct_str = f"· {pct}%" if pct and pct > 0 else ""
+
+                    notes_str = f"· *{task['notes']}*" if task.get('is_milestone') and task.get('notes') else ""
 
                     st.markdown(
                         f"- {status_badge(task.get('status', ''))} **{task.get('task', '')}**{milestone} "
                         f"· {task.get('owner', '—')} "
-                        f"{date_str}{pct_str}"
+                        f"{date_str}{pct_str} {notes_str}"
                     )
-
-                    # only show notes for milestones
-                    if task.get('is_milestone') and task.get('notes'):
-                        st.caption(task['notes'])
 
     st.divider()
 
