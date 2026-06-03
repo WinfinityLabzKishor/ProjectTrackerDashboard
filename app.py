@@ -348,7 +348,7 @@ def render_dashboard(data):
 
 
     # WEEKLY SUMMARY
-    render_weekly_summary(tasks, meta)
+    # render_weekly_summary(tasks, meta)
 
 
     # PHASES
