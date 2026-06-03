@@ -170,6 +170,109 @@ def programme_status_display(status: str):
         return "CRITICAL", "#f44336"
     else:
         return status.split(".")[0].split("·")[0].strip(), "#888"
+    
+def render_weekly_summary(tasks, meta):
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    today = datetime.now(IST).date()
+
+    # calculate week boundaries
+    monday_this = today - timedelta(days=today.weekday())
+    sunday_this = monday_this + timedelta(days=6)
+    monday_next = monday_this + timedelta(days=7)
+    sunday_next = monday_next + timedelta(days=6)
+
+    pending_this_week = []
+    coming_next_week = []
+
+    for task in tasks:
+        status = task.get('status', '').upper()
+        if status in ('DONE', 'COMPLETED'):
+            continue
+
+        planned_end_str = task.get('planned_end')
+        planned_start_str = task.get('planned_start')
+
+        # overdue or due this week
+        if planned_end_str:
+            try:
+                end_date = datetime.fromisoformat(planned_end_str).date()
+                if end_date <= sunday_this:
+                    overdue = end_date < monday_this
+                    pending_this_week.append({
+                        "task": task.get('task', ''),
+                        "phase_id": task.get('phase_id', ''),
+                        "owner": task.get('owner', '—'),
+                        "due": end_date,
+                        "status": status,
+                        "overdue": overdue
+                    })
+                    continue  # don't double count in next week
+            except:
+                pass
+
+        # coming next week
+        if planned_start_str:
+            try:
+                start_date = datetime.fromisoformat(planned_start_str).date()
+                if monday_next <= start_date <= sunday_next:
+                    coming_next_week.append({
+                        "task": task.get('task', ''),
+                        "phase_id": task.get('phase_id', ''),
+                        "owner": task.get('owner', '—'),
+                        "start": start_date,
+                        "status": status
+                    })
+            except:
+                pass
+
+    # sort by date
+    pending_this_week.sort(key=lambda x: x['due'])
+    coming_next_week.sort(key=lambda x: x['start'])
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius:12px; padding:16px 20px; margin-bottom:16px;">
+    <div style="color:white; font-size:18px; font-weight:700; letter-spacing:1px;">📋 Weekly Summary</div>
+    <div style="color:#a0c4ff; font-size:12px; margin-top:4px;">Week of {monday_this.strftime('%d %b')} – {sunday_this.strftime('%d %b %Y')}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+    <div style="background:#fff3cd; border-left:4px solid #ffc107; border-radius:6px; padding:8px 14px; margin-bottom:10px;">
+    <span style="font-size:14px; font-weight:700; color:#856404;">⚠️ Pending This Week</span>
+    </div>
+    """, unsafe_allow_html=True)
+        if pending_this_week:
+            for t in pending_this_week:
+                overdue_badge = ' <span style="background:#f8d7da; color:#842029; font-size:10px; padding:1px 6px; border-radius:10px; border:1px solid #f5c2c7;">OVERDUE</span>' if t['overdue'] else ''
+                st.markdown(
+                    f"- **{t['task']}**{overdue_badge}<br>"
+                    f"  <span style='font-size:12px; color:#666;'> {t['phase_id']} &nbsp;·&nbsp;  {t['owner']} &nbsp;·&nbsp;  Due {t['due'].strftime('%d %b')}</span>",
+                    unsafe_allow_html=True
+                )
+        else:
+            st.success("No pending tasks this week.")
+
+    with col2:
+        st.markdown("""
+    <div style="background:#d1ecf1; border-left:4px solid #17a2b8; border-radius:6px; padding:8px 14px; margin-bottom:10px;">
+    <span style="font-size:14px; font-weight:700; color:#0c5460;">🔭 Coming Next Week</span>
+    </div>
+    """, unsafe_allow_html=True)
+        if coming_next_week:
+            for t in coming_next_week:
+                st.markdown(
+                    f"- **{t['task']}**<br>"
+                    f"  <span style='font-size:12px; color:#666;'> {t['phase_id']} &nbsp;·&nbsp;  {t['owner']} &nbsp;·&nbsp;  Starts {t['start'].strftime('%d %b')}</span>",
+                    unsafe_allow_html=True
+                )
+        else:
+            st.info("No tasks scheduled for next week.")
+
+    st.divider()    
 
 def render_dashboard(data):
 
@@ -243,7 +346,10 @@ def render_dashboard(data):
 """, unsafe_allow_html=True)
     st.divider()
 
-    st.divider()
+
+    # WEEKLY SUMMARY
+    render_weekly_summary(tasks, meta)
+
 
     # PHASES
     st.markdown("### Phases")
