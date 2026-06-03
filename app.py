@@ -242,7 +242,7 @@ def render_weekly_summary(tasks, meta):
     with col1:
         st.markdown("""
     <div style="background:#fff3cd; border-left:4px solid #ffc107; border-radius:6px; padding:8px 14px; margin-bottom:10px;">
-    <span style="font-size:14px; font-weight:700; color:#856404;">⚠️ Pending This Week</span>
+    <span style="font-size:14px; font-weight:700; color:#856404;"> Pending This Week</span>
     </div>
     """, unsafe_allow_html=True)
         if pending_this_week:
@@ -259,7 +259,7 @@ def render_weekly_summary(tasks, meta):
     with col2:
         st.markdown("""
     <div style="background:#d1ecf1; border-left:4px solid #17a2b8; border-radius:6px; padding:8px 14px; margin-bottom:10px;">
-    <span style="font-size:14px; font-weight:700; color:#0c5460;">🔭 Coming Next Week</span>
+    <span style="font-size:14px; font-weight:700; color:#0c5460;"> Coming Next Week</span>
     </div>
     """, unsafe_allow_html=True)
         if coming_next_week:
